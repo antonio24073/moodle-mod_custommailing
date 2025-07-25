@@ -357,12 +357,23 @@ function custommailing_getsql($mailing)
         } else {
             $sql_retro = '';
         }
+
+        if( !empty($mailing->mailingdelay)){
+            $start = new \DateTime();
+            $interval_duration = "PT" . $mailing->mailingdelay . "M";
+            $start->sub(new DateInterval($interval_duration));
+        }
+
         $sql = "SELECT DISTINCT u.*
                 FROM {user} u
                 JOIN {user_enrolments} ue ON ue.userid = u.id
                 JOIN {enrol} e ON e.id = ue.enrolid 
                 WHERE e.courseid = :courseid $sql_retro
                 ";
+        if( !empty($mailing->mailingdelay)){
+            $sql .= " AND ue.timestart < " . $start->getTimestamp();
+        }
+
         $params['courseid'] = $mailing->courseid;
     } elseif ($mailing->mailingmode == MAILING_MODE_COMPLETE && !empty($mailing->targetmoduleid)) {
         $sql = "SELECT DISTINCT u.*

@@ -103,3 +103,4 @@ $string['privacy:metadata:emailstatus'] = 'Email status';
 $string['privacy:metadata:timecreated'] = 'Time created';
 $string['privacy:metadata:timemodified'] = 'Time modified';
 
+$string['atcourseenrol_delayminutes'] = "delay minutes";

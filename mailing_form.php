@@ -170,7 +170,14 @@ class mailing_form extends moodleform
             ]
         );
         $mform->addGroup($mailing_mode, 'mailingmodegroup', get_string('sendmailing', 'mod_custommailing'), ' ', false);
-        $mform->addElement('radio', 'mailingmode', null, get_string('atcourseenrol', 'mod_custommailing'), MAILING_MODE_REGISTRATION);
+        
+        // $mform->addElement('radio', 'mailingmode', null, get_string('atcourseenrol', 'mod_custommailing'), MAILING_MODE_REGISTRATION);
+        $mailing_mode_atcourseenrol = [];
+        $mailing_mode_atcourseenrol[] =& $mform->createElement('radio', 'mailingmode', null,  get_string('atcourseenrol', 'mod_custommailing'), MAILING_MODE_REGISTRATION);
+        $mailing_mode_atcourseenrol[] =& $mform->createElement('select', 'mailingdelay_atcourseenrol', null, $days);
+        $mailing_mode_atcourseenrol[] =& $mform->createElement('static', 'labelname', '', get_string('atcourseenrol_delayminutes', 'mod_custommailing'));
+
+        $mform->addGroup($mailing_mode_atcourseenrol, 'mailingmodegroup_atcourseenrol', get_string('sendmailing', 'mod_custommailing'), ' ', false);
         $mform->setType('mailingmode', PARAM_RAW);
         $mform->setDefault('mailingmode', 0);
         $mform->hideIf('mailingmode', 'source', 'noteq', 2);
@@ -185,6 +192,7 @@ class mailing_form extends moodleform
                 $mform->setDefault('mailingdelay', $mailing->mailingdelay);
             }
         }
+                $mform->setDefault('mailingdelay_atcourseenrol', $mailing->mailingdelay);
 
         // Add retroactive mode
         $mform->addElement('selectyesno', 'retroactive', get_string('retroactive', 'mod_custommailing'));

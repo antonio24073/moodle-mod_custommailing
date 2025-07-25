@@ -83,6 +83,8 @@ if ($form->is_cancelled()) {
         $data->mailingmodecompletion = 0;
     }
     $mailing->targetmodulestatus = $data->mailingmodecompletion;
+
+
     if (isset($data->mailingmode) && $data->mailingmode == 'option' && !empty($data->mailingmodeoption)) {
         $mailing->mailingmode = $data->mailingmodeoption;
         $mailing->mailingdelay = (int) $data->mailingdelay;
@@ -91,6 +93,10 @@ if ($form->is_cancelled()) {
         $mailing->mailingdelay = (int) $data->mailingdelaymodule;
     }
 
+    if (isset($data->mailingmode) && $data->mailingmode == 2) {
+        $mailing->mailingdelay = (int) $data->mailingdelay_atcourseenrol;
+    }
+    
     $mailing->mailingstatus = (bool) $data->mailingstatus;
     $mailing->retroactive = (bool) $data->retroactive;
     if (empty($data->targetmoduleid)) {
