@@ -175,15 +175,16 @@ class mailing_form extends moodleform
         $mailing_mode_atcourseenrol = [];
         $mailing_mode_atcourseenrol[] =& $mform->createElement('radio', 'mailingmode', null,  get_string('atcourseenrol', 'mod_custommailing'), MAILING_MODE_REGISTRATION);
         $mailing_mode_atcourseenrol[] =& $mform->createElement('select', 'mailingdelay_atcourseenrol', null, $days);
-        $mailing_mode_atcourseenrol[] =& $mform->createElement('static', 'labelname', '', get_string('atcourseenrol_delayminutes', 'mod_custommailing'));
+        $mailing_mode_atcourseenrol[] =& $mform->createElement('static', 'mailingdelay_atcourseenrol_label', '', get_string('atcourseenrol_delayminutes', 'mod_custommailing'));
 
-        $mform->addGroup($mailing_mode_atcourseenrol, 'mailingmodegroup_atcourseenrol', get_string('sendmailing', 'mod_custommailing'), ' ', false);
+        $mform->addGroup($mailing_mode_atcourseenrol, 'mailingmodegroup_atcourseenrol', '', ' ', false);
         $mform->setType('mailingmode', PARAM_RAW);
         $mform->setDefault('mailingmode', 0);
         $mform->hideIf('mailingmode', 'source', 'noteq', 2);
         $mform->hideIf('mailingdelay', 'source', 'noteq', 2);
         $mform->hideIf('mailingmodeoption', 'source', 'noteq', 2);
         $mform->hideIf('mailingmodegroup', 'source', 'noteq', 2);
+        $mform->hideIf('mailingmodegroup_atcourseenrol', 'source', 'noteq', 2);
         if (!empty($mailing->targetmodulestatus)) {
             $mform->setDefault('mailingmodecompletion', $mailing->targetmodulestatus);
             $mform->setDefault('mailingmode', $mailing->mailingmode);
