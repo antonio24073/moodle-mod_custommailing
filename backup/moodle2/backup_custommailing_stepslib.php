@@ -43,12 +43,12 @@ class backup_custommailing_activity_structure_step extends backup_activity_struc
             'custommailingid', 'mailingname', 'mailinglang', 'mailingsubject',
             'mailingcontent', 'mailingcontentformat', 'mailingmode', 'mailingdelay',
             'mailingstatus', 'retroactive', 'targetmoduleid','targetmodulestatus', 'customcertmoduleid','starttime',
-            'timecreated', 'timemodified'));
+            'timecreated', 'timemodified', 'timesnumbermax'));
 
         $custommailing_logs = new backup_nested_element('custommailing_logs');
 
         $custommailing_log = new backup_nested_element('custommailing_log', array('id'), array(
-            'custommailingmailingid', 'emailtouserid', 'emailstatus','timecreated', 'timemodified'));
+            'custommailingmailingid', 'emailtouserid', 'emailstatus','timecreated', 'timemodified', 'timesnumbercount'));
 
         // Build the tree
         $custommailing->add_child($custommailing_mailings);

@@ -96,7 +96,13 @@ if ($form->is_cancelled()) {
     if (isset($data->mailingmode) && $data->mailingmode == 2) {
         $mailing->mailingdelay = (int) $data->mailingdelay_atcourseenrol;
     }
-    
+
+    if (isset($data->mailingmode)  && $data->mailingmode == 'option'){
+        $mailing->timesnumbermax = (int) $data->timesnumbermax;
+    }else{
+        $mailing->timesnumbermax = 1;
+    }
+
     $mailing->mailingstatus = (bool) $data->mailingstatus;
     $mailing->retroactive = (bool) $data->retroactive;
     if (empty($data->targetmoduleid)) {
@@ -143,6 +149,9 @@ if ($form->is_cancelled()) {
             $data->source = MAILING_SOURCE_CERT;
         } else {
             $data->source = MAILING_SOURCE_COURSE;
+        }
+        if($data->mailingmode == 'option'){
+            $data->timesnumbermax = (int) $mailing->timesnumbermax;
         }
         $data->retroactive = $mailing->retroactive;
         $form->set_data($data);

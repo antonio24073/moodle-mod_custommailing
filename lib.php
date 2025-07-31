@@ -55,7 +55,8 @@ define('MAILING_SOURCE_CERT', 3);
  * @throws coding_exception
  * @throws dml_exception
  */
-function custommailing_add_instance($custommailing) {
+function custommailing_add_instance($custommailing)
+{
     global $CFG, $DB;
 
     $custommailing->timecreated = time();
@@ -78,7 +79,6 @@ function custommailing_add_instance($custommailing) {
                 notification::error(get_string('coursecompletionnotenabled', 'custommailing'));
             }
         }
-
     }
 
     return $DB->insert_record('custommailing', $custommailing);
@@ -89,7 +89,8 @@ function custommailing_add_instance($custommailing) {
  * @return bool
  * @throws dml_exception
  */
-function custommailing_update_instance($custommailing) {
+function custommailing_update_instance($custommailing)
+{
     global $DB;
 
     $custommailing->timemodified = time();
@@ -103,7 +104,8 @@ function custommailing_update_instance($custommailing) {
  * @return bool
  * @throws dml_exception
  */
-function custommailing_delete_instance($id) {
+function custommailing_delete_instance($id)
+{
     global $DB;
 
     if (!$custommailing = $DB->get_record('custommailing', ['id' => $id])) {
@@ -126,8 +128,9 @@ function custommailing_delete_instance($id) {
  * @param $feature
  * @return bool|null
  */
-function custommailing_supports($feature) {
-    switch($feature) {
+function custommailing_supports($feature)
+{
+    switch ($feature) {
         case FEATURE_GRADE_HAS_GRADE:
             return false;
         case FEATURE_GRADE_OUTCOMES:
@@ -172,7 +175,8 @@ function custommailing_supports($feature) {
  * @return array
  * @throws moodle_exception
  */
-function custommailing_get_activities ($only= false) {
+function custommailing_get_activities($only = false)
+{
     global $COURSE, $PAGE;
     $course_module_context = $PAGE->context;
 
@@ -252,13 +256,13 @@ function custommailing_logs_generate()
 
     $mailings = Mailing::getAllToSend();
     foreach ($mailings as $mailing) {
-        $cm = $DB->get_record('course_modules',['instance' => $mailing->custommailingid, 'module' => $module->id]);
+        $cm = $DB->get_record('course_modules', ['instance' => $mailing->custommailingid, 'module' => $module->id]);
         $groups = [];
-        if(!empty($mailing->mailinggroups)) {
+        if (!empty($mailing->mailinggroups)) {
             $groups = explode(',', $mailing->mailinggroups);
         }
         $cohorts = [];
-        if(!empty($mailing->mailingcohorts)) {
+        if (!empty($mailing->mailingcohorts)) {
             $cohorts = explode(',', $mailing->mailingcohorts);
         }
         $sql = custommailing_getsql($mailing);
@@ -275,16 +279,16 @@ function custommailing_logs_generate()
 
                             if (!empty($groups)) {
                                 $group_ok = false;
-                                foreach($groups as $group) {
-                                    if(groups_is_member($group, $user->id)) {
+                                foreach ($groups as $group) {
+                                    if (groups_is_member($group, $user->id)) {
                                         $group_ok = true;
                                     }
                                 }
                             }
                             if (!empty($cohorts)) {
                                 $cohort_ok = false;
-                                foreach($cohorts as $cohort) {
-                                    if(cohort_is_member($cohort, $user->id)) {
+                                foreach ($cohorts as $cohort) {
+                                    if (cohort_is_member($cohort, $user->id)) {
                                         $cohort_ok = true;
                                     }
                                 }
@@ -295,7 +299,7 @@ function custommailing_logs_generate()
                                 $send = $group_ok && $cohort_ok;
                             }
 
-                            if($send) {
+                            if ($send) {
                                 $record = new stdClass();
                                 $record->custommailingmailingid = (int) $mailing->id;
                                 $record->emailtouserid = (int) $user->id;
@@ -358,7 +362,7 @@ function custommailing_getsql($mailing)
             $sql_retro = '';
         }
 
-        if( !empty($mailing->mailingdelay)){
+        if (!empty($mailing->mailingdelay)) {
             $start = new \DateTime();
             $interval_duration = "PT" . $mailing->mailingdelay . "M";
             $start->sub(new DateInterval($interval_duration));
@@ -370,7 +374,7 @@ function custommailing_getsql($mailing)
                 JOIN {enrol} e ON e.id = ue.enrolid 
                 WHERE e.courseid = :courseid $sql_retro
                 ";
-        if( !empty($mailing->mailingdelay)){
+        if (!empty($mailing->mailingdelay)) {
             $sql .= " AND ue.timestart < " . $start->getTimestamp();
         }
 
@@ -472,7 +476,6 @@ function custommailing_getsql($mailing)
         $params['targetmoduleid'] = $mailing->targetmoduleid;
         $params['coursemoduleid'] = $mailing->targetmoduleid;
         $params['timecreated'] = $start->getTimestamp();
-
     } elseif ($mailing->mailingmode == MAILING_MODE_DAYSFROMLASTLAUNCH && !empty($mailing->targetmoduleid) && !empty($mailing->mailingdelay)) {
         // retroactive mode
         if (!$mailing->retroactive) {
@@ -506,7 +509,6 @@ function custommailing_getsql($mailing)
         $params['contextinstanceid'] = $mailing->targetmoduleid;
         $params['coursemoduleid'] = $mailing->targetmoduleid;
         $params['timecreated'] = $start->getTimestamp();
-
     } elseif ($mailing->mailingmode == MAILING_MODE_SEND_CERTIFICATE && !empty($mailing->customcertmoduleid)) {
         custommailing_certifications($mailing->customcertmoduleid, $mailing->courseid);
         // retroactive mode
@@ -544,21 +546,35 @@ function custommailing_getsql($mailing)
  *
  * @throws dml_exception
  */
-function custommailing_crontask() {
+function custommailing_crontask()
+{
 
     global $DB;
+
+    $config = get_config('custommailing');
+    if (!empty($config->debugmode)) {
+        $delay_range = 'MINUTE';
+    } else {
+        $delay_range = 'DAY';
+    }
 
     custommailing_logs_generate();
 
     $ids_to_update = [];
+    $records_to_create_new_log = [];
 
-    $sql = "SELECT u.*, u.id as userid, rm.mailinggroups, rm.mailingsubject, rm.mailingcontent, rl.id as logid, rm.customcertmoduleid
+    $sql = "SELECT u.*, u.id as userid, rm.mailinggroups, rm.mailingsubject, rm.mailingcontent, rl.id as logid, rm.customcertmoduleid, rm.id as mailing_id,
+            rm.mailingdelay AS mailingdelay, rm.timesnumbermax AS timesnumbermax, rl.timesnumbercount AS timesnumbercount, rl.timecreated as timecreated
             FROM {user} u
             JOIN {custommailing_logs} rl ON rl.emailtouserid = u.id 
             JOIN {custommailing_mailing} rm ON rm.id = rl.custommailingmailingid
             WHERE rl.emailstatus < :mailing_log_sent";
     $logs = $DB->get_recordset_sql($sql, ['mailing_log_sent' => MAILING_LOG_SENT]);
+    // error_log(json_encode($logs) . PHP_EOL, 3, __DIR__ . '/custommailing.log');
+
     foreach ($logs as $log) {
+
+        // error_log($log->timesnumbermax . " - " . $log->timesnumbercount . PHP_EOL, 3, __DIR__ . '/custommailing.log');
         if (!empty($log->customcertmoduleid)) {
             $attachment = custommailing_getcertificate($log->userid, $log->customcertmoduleid);
         } else {
@@ -567,11 +583,44 @@ function custommailing_crontask() {
             $attachment->filename = '';
         }
         $log->mailingcontent = str_replace(['%firstname%', '%lastname%'], [$log->firstname, $log->lastname], $log->mailingcontent);
-        if (email_to_user($log, core_user::get_support_user(), $log->mailingsubject, strip_tags($log->mailingcontent), $log->mailingcontent, $attachment->file, $attachment->filename)) {
-            $ids_to_update[] = $log->logid;
+
+
+        $next_time = new \DateTime();
+        $next_time->setTimestamp($log->timecreated);
+        $delay = (string)((int)$log->mailingdelay);
+        $interval_duration = "P" . $delay . "D";
+        if ($delay_range == 'MINUTE') {
+            $interval_duration = "PT" . $delay . "M";
+        }
+        $next_time->add(new DateInterval($interval_duration));
+        $next_time_timestamp = $next_time->getTimestamp();
+
+        $timecreated = new \DateTime();
+        $timecreated->setTimestamp($log->timecreated);
+
+        // error_log(" - now: " . date('H:i:s') . ' - next_time: ' . $next_time->format('H:i:s') . " - timecreated: " . $timecreated->format('H:i:s') . PHP_EOL, 3, __DIR__ . '/custommailing.log');
+
+        $now = time();
+        if ($now > $next_time_timestamp) {
+            if (email_to_user($log, core_user::get_support_user(), $log->mailingsubject, strip_tags($log->mailingcontent), $log->mailingcontent, $attachment->file, $attachment->filename)) {
+
+                $ids_to_update[] = $log->logid;
+
+                $record = new stdClass();
+                $record->custommailingmailingid = (int) $log->mailing_id;
+                $record->emailtouserid = (int) $log->userid;
+                $record->emailstatus = MAILING_LOG_PROCESSING;
+                $record->timecreated = time();
+                $record->timesnumbermax = $log->timesnumbermax;
+                $record->timesnumbercount = $log->timesnumbercount + 1;
+                $records_to_create_new_log[] = $record;
+            }
         }
     }
     $logs->close();
+
+    // error_log('ids_to_update - ' . json_encode($ids_to_update) . PHP_EOL, 3, __DIR__ . '/custommailing.log');
+    // error_log('records_to_create_new_log - ' . json_encode($records_to_create_new_log) . PHP_EOL, 3, __DIR__ . '/custommailing.log');
 
     // Set emailstatus to MAILING_LOG_SENT on each sended email
     if (is_array($ids_to_update) && count($ids_to_update)) {
@@ -580,6 +629,13 @@ function custommailing_crontask() {
         $DB->execute("UPDATE {custommailing_logs} SET emailstatus = :mailing_log_sent WHERE id $insql", $sqlparams);
     }
 
+    if (is_array($records_to_create_new_log) && count($records_to_create_new_log)) {
+        foreach ($records_to_create_new_log as $record) {
+            if ($record->timesnumbercount <= $record->timesnumbermax) {
+                MailingLog::create($record);
+            }
+        }
+    }
 }
 
 /**
@@ -590,7 +646,8 @@ function custommailing_crontask() {
  * @return stdClass
  * @throws dml_exception
  */
-function custommailing_getcertificate($userid, $customcertid) {
+function custommailing_getcertificate($userid, $customcertid)
+{
 
     global $DB;
 
@@ -671,7 +728,7 @@ function custommailing_certification($userid, $customcertid, $courseid)
              WHERE cm.instance = :cminstance AND md.name = :modulename AND cm.course = :courseid";
 
     $cm = $DB->get_record_sql($sql, ['cminstance' => $customcertid, 'modulename' => 'customcert', 'courseid' => $courseid]);
-//    $cm = get_coursemodule_from_id('customcert', $cmid, $courseid, false, MUST_EXIST);
+    //    $cm = get_coursemodule_from_id('customcert', $cmid, $courseid, false, MUST_EXIST);
     $modinfo = get_fast_modinfo($courseid);
     $cminfo = $modinfo->get_cm($cm->id);
     $ainfomod = new \core_availability\info_module($cminfo);
@@ -687,5 +744,4 @@ function custommailing_certification($userid, $customcertid, $courseid)
             $DB->insert_record('customcert_issues', $customcertissue);
         }
     }
-
 }

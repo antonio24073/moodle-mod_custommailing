@@ -102,4 +102,5 @@ $string['privacy:metadata:emailstatus'] = 'Statut d\'envoi de l\'email';
 $string['privacy:metadata:timecreated'] = 'Date et heure de création';
 $string['privacy:metadata:timemodified'] = 'Date et heure de modification';
 
-$string['atcourseenrol_delayminutes'] = "minutes de retard";
+$string['atcourseenrol_delayminutes'] = "Minutes de retard: ";
+$string['mailingtimesnumbermax'] = "Nombre de fois: ";

@@ -84,5 +84,29 @@ function xmldb_custommailing_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2024070500, 'custommailing');
     }
 
+     if ($oldversion < 2025072905) {
+
+        // Define the table and new field.
+        $table = new xmldb_table('custommailing_mailing');
+
+        // Field: timesnumbermax
+        $field = new xmldb_field('timesnumbermax', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, 1);
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Define the table and new field.
+        $table = new xmldb_table('custommailing_logs');
+
+        // Field: timesnumbercount
+        $field = new xmldb_field('timesnumbercount', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, 1);
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+        // Upgrade savepoint.
+        upgrade_mod_savepoint(true, 2025072905, 'custommailing');
+    }
+
+
     return true;
 }
