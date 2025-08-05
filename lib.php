@@ -44,6 +44,7 @@ define('MAILING_LOG_IDLE', 0);
 define('MAILING_LOG_PROCESSING', 1);
 define('MAILING_LOG_SENT', 2);
 define('MAILING_LOG_FAILED', 3);
+define('MAILING_LOG_NOT_ACTIVE', 4);
 
 define('MAILING_SOURCE_MODULE', 1);
 define('MAILING_SOURCE_COURSE', 2);
@@ -270,7 +271,17 @@ function custommailing_logs_generate()
             $users = $DB->get_records_sql($sql['sql'], $sql['params']);
             if (is_array($users)) {
                 foreach ($users as $user) {
-                    if (validate_email($user->email) && !$DB->get_record('custommailing_logs', ['custommailingmailingid' => $mailing->id, 'emailtouserid' => $user->id])) {
+                    if (
+                        validate_email($user->email)
+                        && !$DB->get_records(
+                            'custommailing_logs',
+                            ['custommailingmailingid' => $mailing->id, 'emailtouserid' => $user->id],
+                            'timesnumbercount DESC',
+                            'id',
+                            0,
+                            1
+                        )
+                    ) {
                         $modinfo = get_fast_modinfo($mailing->courseid, $user->id);
                         $cm = $modinfo->get_cm($cm->id);
                         if ($cm->available) {
@@ -562,19 +573,27 @@ function custommailing_crontask()
 
     $ids_to_update = [];
     $records_to_create_new_log = [];
+    $ids_to_disable = [];
+
 
     $sql = "SELECT u.*, u.id as userid, rm.mailinggroups, rm.mailingsubject, rm.mailingcontent, rl.id as logid, rm.customcertmoduleid, rm.id as mailing_id,
-            rm.mailingdelay AS mailingdelay, rm.timesnumbermax AS timesnumbermax, rl.timesnumbercount AS timesnumbercount, rl.timecreated as timecreated
+            rm.mailingdelay AS mailingdelay, rm.timesnumbermax AS timesnumbermax, rl.timesnumbercount AS timesnumbercount, rl.timecreated as timecreated,
+            r.course AS courseid, MAX(rl.timesnumbercount) AS maxtimesnumbercount
             FROM {user} u
             JOIN {custommailing_logs} rl ON rl.emailtouserid = u.id 
             JOIN {custommailing_mailing} rm ON rm.id = rl.custommailingmailingid
-            WHERE rl.emailstatus < :mailing_log_sent";
+            JOIN {custommailing} r ON r.id = rm.custommailingid
+            WHERE rl.emailstatus < :mailing_log_sent
+            GROUP BY logid
+            ";
+    $now = time();
     $logs = $DB->get_recordset_sql($sql, ['mailing_log_sent' => MAILING_LOG_SENT]);
     // error_log(json_encode($logs) . PHP_EOL, 3, __DIR__ . '/custommailing.log');
 
     foreach ($logs as $log) {
+        // error_log(json_encode($log) . PHP_EOL, 3, __DIR__ . '/custommailing.log');
 
-        // error_log($log->timesnumbermax . " - " . $log->timesnumbercount . PHP_EOL, 3, __DIR__ . '/custommailing.log');
+        // error_log('timesnumber: ' . $log->timesnumbermax . " - " . $log->timesnumbercount . PHP_EOL, 3, __DIR__ . '/custommailing.log');
         if (!empty($log->customcertmoduleid)) {
             $attachment = custommailing_getcertificate($log->userid, $log->customcertmoduleid);
         } else {
@@ -585,6 +604,28 @@ function custommailing_crontask()
         $log->mailingcontent = str_replace(['%firstname%', '%lastname%'], [$log->firstname, $log->lastname], $log->mailingcontent);
 
 
+        // Check if user is enrolled in the course
+        $now = time();
+        $sql = "SELECT
+                u.id AS userid,
+                c.id AS courseid,
+                CONCAT(u.id, ' - ', c.id) AS usercourseid
+            FROM {user_enrolments} ue
+            JOIN {enrol} e ON e.id = ue.enrolid
+            JOIN {user} u ON u.id = ue.userid
+            JOIN {course} c ON c.id = e.courseid
+            WHERE u.id = :userid
+            AND c.id = :courseid
+            AND ue.status = 0
+            AND (ue.timeend = 0 OR ue.timeend > :now1)
+            AND ue.timestart <= :now2";
+
+        $enrolments = $DB->get_records_sql($sql, ['mailing_log_sent' => MAILING_LOG_SENT, 'now1' => $now, 'now2' => $now, 'userid' => $log->userid, 'courseid' => $log->courseid]);
+        // error_log('enrolments: ' . json_encode($enrolments) . PHP_EOL, 3, __DIR__ . '/custommailing.log');
+        // error_log('enrolment: ' . $log->userid . " - " . $log->courseid . PHP_EOL, 3, __DIR__ . '/custommailing.log');
+
+
+        // Calculate next time to send email
         $next_time = new \DateTime();
         $next_time->setTimestamp($log->timecreated);
         $delay = (string)((int)$log->mailingdelay);
@@ -597,23 +638,27 @@ function custommailing_crontask()
 
         $timecreated = new \DateTime();
         $timecreated->setTimestamp($log->timecreated);
-
         // error_log(" - now: " . date('H:i:s') . ' - next_time: ' . $next_time->format('H:i:s') . " - timecreated: " . $timecreated->format('H:i:s') . PHP_EOL, 3, __DIR__ . '/custommailing.log');
 
-        $now = time();
+
+        // Sending email
         if ($now > $next_time_timestamp) {
-            if (email_to_user($log, core_user::get_support_user(), $log->mailingsubject, strip_tags($log->mailingcontent), $log->mailingcontent, $attachment->file, $attachment->filename)) {
+            if (in_array($log->userid . " - " . $log->courseid, array_column($enrolments, 'usercourseid'))) {
+                if (email_to_user($log, core_user::get_support_user(), $log->mailingsubject, strip_tags($log->mailingcontent), $log->mailingcontent, $attachment->file, $attachment->filename)) {
 
-                $ids_to_update[] = $log->logid;
+                    $ids_to_update[] = $log->logid;
 
-                $record = new stdClass();
-                $record->custommailingmailingid = (int) $log->mailing_id;
-                $record->emailtouserid = (int) $log->userid;
-                $record->emailstatus = MAILING_LOG_PROCESSING;
-                $record->timecreated = time();
-                $record->timesnumbermax = $log->timesnumbermax;
-                $record->timesnumbercount = $log->timesnumbercount + 1;
-                $records_to_create_new_log[] = $record;
+                    $record = new stdClass();
+                    $record->custommailingmailingid = (int) $log->mailing_id;
+                    $record->emailtouserid = (int) $log->userid;
+                    $record->emailstatus = MAILING_LOG_PROCESSING;
+                    $record->timecreated = time();
+                    $record->timesnumbermax = $log->timesnumbermax;
+                    $record->timesnumbercount = $log->timesnumbercount + 1;
+                    $records_to_create_new_log[] = $record;
+                }
+            } else {
+                $ids_to_disable[] = $log->logid;
             }
         }
     }
@@ -621,6 +666,7 @@ function custommailing_crontask()
 
     // error_log('ids_to_update - ' . json_encode($ids_to_update) . PHP_EOL, 3, __DIR__ . '/custommailing.log');
     // error_log('records_to_create_new_log - ' . json_encode($records_to_create_new_log) . PHP_EOL, 3, __DIR__ . '/custommailing.log');
+    // error_log('ids_to_disable - ' . json_encode($ids_to_disable) . PHP_EOL, 3, __DIR__ . '/custommailing.log');
 
     // Set emailstatus to MAILING_LOG_SENT on each sended email
     if (is_array($ids_to_update) && count($ids_to_update)) {
@@ -635,6 +681,13 @@ function custommailing_crontask()
                 MailingLog::create($record);
             }
         }
+    }
+
+    // Set emailstatus to MAILING_LOG_NOT_ACTIVE on each sended email
+    if (is_array($ids_to_disable) && count($ids_to_disable)) {
+        list($insql, $sqlparams) = $DB->get_in_or_equal($ids_to_disable, SQL_PARAMS_NAMED);
+        $sqlparams['mailing_log_sent'] = MAILING_LOG_NOT_ACTIVE;
+        $DB->execute("UPDATE {custommailing_logs} SET emailstatus = :mailing_log_sent WHERE id $insql", $sqlparams);
     }
 }
 
